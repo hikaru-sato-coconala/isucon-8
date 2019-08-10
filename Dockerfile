@@ -35,6 +35,6 @@ RUN gem install bundler -v 1.16.4
 
 COPY . /isucon
 
-RUN cd /isucon/bench && make deps && make
+#RUN cd /isucon/bench && make deps && make
 
-CMD tail -f /dev/null
+#CMD tail -f /dev/null
