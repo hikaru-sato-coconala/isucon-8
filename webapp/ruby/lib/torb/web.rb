@@ -58,9 +58,9 @@ module Torb
 
         db.query('BEGIN')
         begin
-          event_ids = db.query('SELECT * FROM events ORDER BY id ASC').select(&where).map { |e| e['id'] }
-          events = event_ids.map do |event_id|
-            event = get_event(event_id)
+          event_objs = db.query('SELECT * FROM events ORDER BY id ASC').select(&where)
+          events = event_objs.map do |event_obj|
+            event = get_event(event_obj['id'], event_obj)
             event['sheets'].each { |sheet| sheet.delete('detail') }
             event
           end
@@ -72,9 +72,13 @@ module Torb
         events
       end
 
-      def get_event(event_id, login_user_id = nil)
-        event = db.xquery('SELECT * FROM events WHERE id = ?', event_id).first
-        return unless event
+      def get_event(event_id, event_obj = nil, login_user_id = nil)
+        if event_obj.nil?
+          event = db.xquery('SELECT * FROM events WHERE id = ?', event_id).first
+          return unless event
+        else
+          event = event_obj
+        end
 
         # zero fill
         event['total']   = 0
@@ -268,7 +272,7 @@ module Torb
 
     get '/api/events/:id' do |event_id|
       user = get_login_user || {}
-      event = get_event(event_id, user['id'])
+      event = get_event(event_id, nil, user['id'])
       halt_with_error 404, 'not_found' if event.nil? || !event['public']
 
       event = sanitize_event(event)
@@ -279,7 +283,7 @@ module Torb
       rank = body_params['sheet_rank']
 
       user  = get_login_user
-      event = get_event(event_id, user['id'])
+      event = get_event(event_id, nil, user['id'])
       halt_with_error 404, 'invalid_event' unless event && event['public']
       halt_with_error 400, 'invalid_rank' unless validate_rank(rank)
 
@@ -308,7 +312,7 @@ module Torb
 
     delete '/api/events/:id/sheets/:rank/:num/reservation', login_required: true do |event_id, rank, num|
       user  = get_login_user
-      event = get_event(event_id, user['id'])
+      event = get_event(event_id, nil, user['id'])
       halt_with_error 404, 'invalid_event' unless event && event['public']
       halt_with_error 404, 'invalid_rank'  unless validate_rank(rank)
 
@@ -423,7 +427,7 @@ module Torb
     get '/admin/api/reports/events/:id/sales', admin_login_required: true do |event_id|
       event = get_event(event_id)
 
-      reservations = db.xquery('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC LOCK IN SHARE MODE', event['id'])
+      reservations = db.xquery('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC', event['id'])
       reports = reservations.map do |reservation|
         {
           reservation_id: reservation['id'],
@@ -441,7 +445,7 @@ module Torb
     end
 
     get '/admin/api/reports/sales', admin_login_required: true do
-      reservations = db.query('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.id AS event_id, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id ORDER BY reserved_at ASC LOCK IN SHARE MODE')
+      reservations = db.query('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.id AS event_id, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id ORDER BY reserved_at ASC')
       reports = reservations.map do |reservation|
         {
           reservation_id: reservation['id'],
