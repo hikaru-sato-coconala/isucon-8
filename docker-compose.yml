@@ -19,7 +19,7 @@ services:
       - "MYSQL_PASSWORD=isucon"
       - "TZ=Asia/Tokyo"
     ports:
-      - "3306:3306"
+      - "13306:3306"
 
 volumes:
   mysql-webapp-data:
